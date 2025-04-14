@@ -370,19 +370,16 @@ class KernelWriterAssembly(KernelWriter):
     tP["enableLDSTr"] = False
     if tChar != "Metadata":
         tP["enableLDSTr"] = kernel["enableLDSTr%s"%tChar]
-    length = len(instructions["LocalRead"])
 
-    if tP["enableLDSTr"]:
-        localReadInstructionIdx = length - 1
-    else:
-        localReadInstructionIdx = self.selectMemoryInstruction("LocalRead", localReadWidth, \
-                                   False, \
-                                   localRead2Coalesced, localRead2Perpendicular,
-                                   [localReadStrideCoalesced] )
+    localReadOperation = "LocalReadTR" if tP["enableLDSTr"] else "LocalRead"
+    localReadInstructionIdx = self.selectMemoryInstruction(localReadOperation, localReadWidth, \
+                                False, \
+                                localRead2Coalesced, localRead2Perpendicular,
+                                [localReadStrideCoalesced] )
     tP["localRead2Coalesced"]      = localRead2Coalesced
     tP["localRead2Perpendicular"]  = localRead2Perpendicular
     tP["localReadStrideCoalesced"] = localReadStrideCoalesced
-    tP["localReadInstruction"]     = instructions["LocalRead"][localReadInstructionIdx]
+    tP["localReadInstruction"]     = instructions[localReadOperation][localReadInstructionIdx]
 
   def allocTmpSgpr(self, num: int, alignment=None, tag=None):
     def overflowListener(e):

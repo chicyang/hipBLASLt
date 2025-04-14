@@ -197,7 +197,14 @@ class LraTileAssignmentMFMA(LraTileAssignment):
         umlds            = kernel["UnrollMajorLDS%s" % tc]
         mt               = kernel["MacroTile%u" % tile01]
         if enableLDSTr:
-           strideTile = 4
+            if kernel["ProblemType"]["DataType"].numBytes() == 2:
+                strideTile = 4
+                threadsPerK = 4
+            elif kernel["ProblemType"]["DataType"].numBytes() == 1:
+                strideTile = 8
+                threadsPerK = 2
+            else:
+                assert("not support")
         else:
            strideTile       = kernel["_DepthU%s"%tc] + LdsPad if umlds else 1
         if isDTVAB:
@@ -224,8 +231,8 @@ class LraTileAssignmentMFMA(LraTileAssignment):
             module.add(vectorStaticRemainder(dummy, kReg, dividendReg, waveWidth, tmpVgprRes, tmpSgprInfo, \
                 "0. thread id in wave: wtid = tid %% wavelength(%u)" % waveWidth))
             if enableLDSTr:
-               module.add(vectorStaticRemainder(dummy, tReg, kReg, 4, tmpVgprRes, tmpSgprInfo, \
-                                                "1. N offset: nIdx = wtid %% 4"))
+               module.add(vectorStaticRemainder(dummy, tReg, kReg, threadsPerK, tmpVgprRes, tmpSgprInfo, \
+                                                "1. N offset: nIdx = wtid %% (%d)"%threadsPerK))
                module.add(vectorStaticRemainder(dummy, sReg, kReg, dividendForKId, tmpVgprRes, tmpSgprInfo, \
                                                 "1. N offset: nIdx = wtid %% MI_M(%d)"%dividendForKId))
                module.add(vectorStaticDivide(sReg, sReg, 16, tmpVgprRes, \
@@ -262,8 +269,8 @@ class LraTileAssignmentMFMA(LraTileAssignment):
                     if enableLDSTr:
                         module.add(vectorStaticRemainder(dummy, mReg, kReg, 16, tmpVgprRes, tmpSgprInfo, \
                                                         "5.1 thread id in wave: mtid = wtid %% 16"))
-                        module.add(vectorStaticDivide(mReg, mReg, 4, tmpVgprRes, \
-                                                     "5.2 thread id in wave: k1Idx = mtid // 4"))
+                        module.add(vectorStaticDivide(mReg, mReg, threadsPerK, tmpVgprRes, \
+                                                     "5.2 thread id in wave: k1Idx = mtid // (%d)"%threadsPerK))
                 if (dividendForKId != waveWidth) or isDTVAB:
                   # DTVAB case, add this regardless of dividendForKId != waveWidth
                     module.add(vectorStaticDivide(kReg, kReg, dividendForKId, tmpVgprRes, \

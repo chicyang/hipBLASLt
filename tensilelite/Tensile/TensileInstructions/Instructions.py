@@ -1068,6 +1068,11 @@ class DSLoadB64TrB16(DSLoadInstruction):
         if ds: ds.na = 1
         self.setInst("ds_load_b64_tr_b16")
 
+class DSLoadB64TrB8(DSLoadInstruction):
+    def __init__(self, dst, src, ds: Optional[DSModifiers] = None, comment="") -> None:
+        super().__init__(InstType.INST_B64, dst, src, ds, comment)
+        if ds: ds.na = 1
+        self.setInst("ds_load_b64_tr_b8")
 
 class DSLoadB128(DSLoadInstruction):
     def __init__(self, dst, src, ds: Optional[DSModifiers] = None, comment="") -> None:

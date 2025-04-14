@@ -176,23 +176,42 @@ class LocalReadMFMA(LocalRead):
                             kernel["MatrixInstN"] * kernel["MatrixInstBN"] * kernel["MIWaveGroup"][1] * kernel["VectorWidthB"]]
 
         numberMTilesPerWave = kernel["MIWaveTile"][tile01]
+        numberVgprPerMTile = 8 if tP["bpeDS"] == 1 else 4
         for tIdx in range(0, numberMTilesPerWave):
-            offset_val = int((tP["localReadOffset"]+MIWaveGroupShape[tile01]*tIdx) * tP["bpeDS"])
-            if (kernel["LdsBlockSizePerPad%s"%tc] != 0) and (kernel["LdsPad%s"%tc] != 0):
-                offset_val = int(offset_val + (offset_val // kernel["LdsBlockSizePerPad%s"%tc]) * kernel["LdsPad%s"%tc] * tP["bpeDS"])
-            paramList = []
-            paramList.append(int(offset_val))
-            ds = DSModifiers(na=1, offset=paramList[0])
             LocalReadX = instruction.getInst()
-            destVgpr = vgpr("Valu%s_X%u_I%u+%u+0"%(tc,bufferIdx,iui, 4*tIdx), 2)
             comment = "LDS Transpose"
-            localReadCode = imod.add(Module("LocalRead%s tile %d"%(tc, tIdx)))
+            localReadCode = imod.add(Module("LocalRead%s Valu%u"%(tc,tIdx)))
+
+            first_offset_val = (tP["localReadOffset"]+MIWaveGroupShape[tile01]*tIdx) * tP["bpeDS"]
+            def apply_padding(offset_val):
+                if (kernel["LdsBlockSizePerPad%s"%tc] != 0) and (kernel["LdsPad%s"%tc] != 0):
+                    offset_val = offset_val + (offset_val // kernel["LdsBlockSizePerPad%s"%tc]) * kernel["LdsPad%s"%tc] * tP["bpeDS"]
+                return int(offset_val)
+            paramList = []
+            paramList.append(apply_padding(first_offset_val))
+            destVgpr = vgpr("Valu%s_X%u_I%u+%u+0"%(tc,bufferIdx,iui,numberVgprPerMTile*tIdx), 2)
+            ds = DSModifiers(na=1, offset=paramList[0])
             localReadCode.add(LocalReadX(dst=destVgpr, src=vgpr("LocalReadAddr%s"%tc), ds=ds, comment=comment))
-            destVgpr = vgpr("Valu%s_X%u_I%u+%u+2"%(tc,bufferIdx,iui,4*tIdx), 2)
-            offset_val = paramList[0]+UnrollStride*inputPerThread;
-            paramList.append(int(offset_val))
+
+            if tP["bpeDS"] == 1:
+                paramList.append(paramList[0]+ int(UnrollStride*inputPerThread/2))
+            else:
+                paramList.append(paramList[0]+UnrollStride*inputPerThread)
+            destVgpr = vgpr("Valu%s_X%u_I%u+%u+2"%(tc,bufferIdx,iui,numberVgprPerMTile*tIdx), 2)
             ds = DSModifiers(na=1, offset=paramList[1])
             localReadCode.add(LocalReadX(dst=destVgpr, src=vgpr("LocalReadAddr%s"%tc), ds=ds, comment=comment))
+
+            if tP["bpeDS"] == 1:
+                offset_val = int(UnrollStride * kernel["MatrixInstK"] / 2)
+                paramList.append(apply_padding(first_offset_val+offset_val))
+                destVgpr = vgpr("Valu%s_X%u_I%u+%u+4"%(tc,bufferIdx,iui,numberVgprPerMTile*tIdx), 2)
+                ds = DSModifiers(na=1, offset=paramList[2])
+                localReadCode.add(LocalReadX(dst=destVgpr, src=vgpr("LocalReadAddr%s"%tc), ds=ds, comment=comment))
+
+                paramList.append(paramList[2]+ int(UnrollStride*inputPerThread/2))
+                destVgpr = vgpr("Valu%s_X%u_I%u+%u+6"%(tc,bufferIdx,iui,numberVgprPerMTile*tIdx), 2)
+                ds = DSModifiers(na=1, offset=paramList[3])
+                localReadCode.add(LocalReadX(dst=destVgpr, src=vgpr("LocalReadAddr%s"%tc), ds=ds, comment=comment))
 
         # DTV case, do not return local read code. Return pack code only.
         if (tP["isA"] or tP["isB"]) and kernel["DirectToVgpr%s"%tc]:
