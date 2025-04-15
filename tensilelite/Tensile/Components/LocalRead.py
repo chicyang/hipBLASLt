@@ -195,6 +195,8 @@ class LocalReadMFMA(LocalRead):
 
             if tP["bpeDS"] == 1:
                 paramList.append(paramList[0]+ int(UnrollStride*inputPerThread/2))
+            elif tP["bpeDS"] == 0.5:
+                paramList.append(paramList[0]+ int(UnrollStride*inputPerThread/4))
             else:
                 paramList.append(paramList[0]+UnrollStride*inputPerThread)
             destVgpr = vgpr("Valu%s_X%u_I%u+%u+2"%(tc,bufferIdx,iui,numberVgprPerMTile*tIdx), 2)

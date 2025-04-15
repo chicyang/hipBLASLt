@@ -203,6 +203,9 @@ class LraTileAssignmentMFMA(LraTileAssignment):
             elif kernel["ProblemType"]["DataType"].numBytes() == 1:
                 strideTile = 8
                 threadsPerK = 2
+            elif kernel["ProblemType"]["DataType"].numBytes() == 0.5:
+                strideTile = 16
+                threadsPerK = 1
             else:
                 assert("not support")
         else:
